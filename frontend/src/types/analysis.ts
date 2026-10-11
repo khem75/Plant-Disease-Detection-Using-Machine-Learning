@@ -71,6 +71,15 @@ export interface PredictionResult {
     targetClassIndex?: number;
     image: string;
     heatmap?: string;
+    hotspots?: Array<{
+      x: number;
+      y: number;
+      radius: number;
+      area_px?: number;
+      intensity: number;
+    }>;
+    lesions_detected?: number;
+    affected_area_pct?: number;
   };
   recommendations?: string[];
   model?: {
@@ -88,6 +97,8 @@ export interface PredictionResult {
   };
   model_version?: string;
   analyzed_at?: string;
+  is_out_of_distribution?: boolean;
+  quality_warning?: string | null;
 }
 
 export interface HistoryItem {

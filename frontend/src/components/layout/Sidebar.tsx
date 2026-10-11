@@ -1,233 +1,94 @@
 "use client";
 
-import type { HistoryItem, PredictionResult } from "../../types/analysis";
-import { getFullImageUrl, formatDateOnly } from "../../lib/utils";
-import { getLocalDiseaseMetadata } from "../../lib/diseaseData";
+import React from "react";
+import { Leaf, Clock, GraduationCap, Sprout } from "lucide-react";
 
 interface SidebarProps {
-  activeView: "home" | "analyze" | "history";
-  onSelectView: (view: "home" | "analyze" | "history") => void;
-  recentHistory: HistoryItem[];
-  onSelectHistoryItem: (result: PredictionResult) => void;
-  isOpenMobile?: boolean;
-  onCloseMobile?: () => void;
-  onOpenViva?: () => void;
+  activeView: "analyze" | "history";
+  onSelectView: (view: "analyze" | "history") => void;
+  historyCount?: number;
 }
 
-// Student fallback history records that match the mockup when database is empty
-const DEFAULT_RECENT_SAMPLES = [
-  {
-    id: 101,
-    plant: "Peach",
-    disease: "Bacterial Spot",
-    confidence: 42.0,
-    confidence_level: "low",
-    date: "02 Oct 2026",
-    thumb: "/samples/peach.jpg",
-  },
-  {
-    id: 102,
-    plant: "Grape",
-    disease: "Leaf Blight",
-    confidence: 46.5,
-    confidence_level: "low",
-    date: "02 Oct 2026",
-    thumb: "/samples/grape.jpg",
-  },
-  {
-    id: 103,
-    plant: "Tomato",
-    disease: "Early Blight",
-    confidence: 88.4,
-    confidence_level: "high",
-    date: "28 Sep 2026",
-    thumb: "/samples/tomato.jpg",
-  },
-  {
-    id: 104,
-    plant: "Apple",
-    disease: "Healthy",
-    confidence: 94.2,
-    confidence_level: "high",
-    date: "25 Sep 2026",
-    thumb: "/samples/apple.jpg",
-  },
-  {
-    id: 105,
-    plant: "Pepper",
-    disease: "Bacterial Spot",
-    confidence: 65.8,
-    confidence_level: "medium",
-    date: "20 Sep 2026",
-    thumb: "/samples/pepper.jpg",
-  },
-];
-
-export function Sidebar({
-  activeView,
-  onSelectView,
-  recentHistory,
-  onSelectHistoryItem,
-  isOpenMobile,
-  onCloseMobile,
-  onOpenViva,
-}: SidebarProps) {
-  const handleItemClick = (plant: string, disease: string, confidence: number, thumb: string, date: string) => {
-    const meta = getLocalDiseaseMetadata(`${plant}___${disease.replace(/ /g, "_")}`);
-    const res: PredictionResult = {
-      id: Date.now(),
-      plant,
-      disease,
-      pathogen: meta.pathogen,
-      confidence,
-      confidence_level: confidence >= 75 ? "high" : confidence >= 50 ? "medium" : "low",
-      class_name: `${plant}___${disease.replace(/ /g, "_")}`,
-      image_url: thumb,
-      gradcam_image: thumb,
-      heatmap_image: thumb,
-      disease_info: meta,
-      analyzed_at: date,
-    };
-    onSelectHistoryItem(res);
-    onSelectView("home");
-    if (onCloseMobile) onCloseMobile();
-  };
-
-  // Sidebar is no longer rendered in the main layout but kept for compatibility
-  // It is now hidden by default and only used for mobile overlay if needed
-  if (!isOpenMobile) return null;
-
+export function Sidebar({ activeView, onSelectView }: SidebarProps) {
   return (
-    <>
-      {/* Mobile backdrop */}
-      <div
-        onClick={onCloseMobile}
-        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden"
-        aria-hidden="true"
-      />
-
-      <aside
-        className="fixed top-16 bottom-0 left-0 z-40 flex w-72 flex-col border-r border-[#E5E7EB] bg-white p-4 shadow-xl"
-      >
-        {/* Close button */}
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-bold text-[#111827]">Menu</span>
-          <button
-            type="button"
-            onClick={onCloseMobile}
-            className="rounded-lg p-1 text-[#6B7280] hover:bg-[#F3F4F6]"
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+    <aside className="w-[216px] shrink-0 bg-[#073F28] text-white flex flex-col min-h-screen relative overflow-hidden select-none border-r border-[#0A4E32]">
+      {/* Brand Header */}
+      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-[#0C4E33]">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#176B3A] text-white shadow-xs shrink-0">
+          <Leaf className="h-5 w-5 text-[#2F8A4B] fill-[#2F8A4B]" />
         </div>
+        <div>
+          <h1 className="text-[13px] font-extrabold tracking-tight leading-tight text-white">
+            Plant Disease<br />Detection
+          </h1>
+          <p className="text-[10px] text-[#A0B2A6] font-medium leading-none mt-0.5">
+            AI &amp; Computer Vision
+          </p>
+        </div>
+      </div>
 
-        {/* Navigation */}
-        <nav className="flex flex-col gap-1" aria-label="Sidebar navigation">
-          {[
-            { key: "home" as const, label: "Home" },
-            { key: "analyze" as const, label: "Analyze" },
-            { key: "history" as const, label: "History" },
-          ].map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => {
-                onSelectView(item.key);
-                if (onCloseMobile) onCloseMobile();
-              }}
-              className={`rounded-lg px-3 py-2.5 text-sm font-medium text-left transition-colors ${
-                activeView === item.key
-                  ? "bg-[#ECFDF5] text-[#065F46] font-semibold"
-                  : "text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111827]"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
+      {/* Navigation Links */}
+      <nav className="p-3 space-y-1.5 z-10" aria-label="Main navigation">
+        {/* Analyze */}
+        <button
+          type="button"
+          onClick={() => onSelectView("analyze")}
+          className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            activeView === "analyze"
+              ? "bg-[#176B3A] text-white shadow-sm"
+              : "text-[#A0B2A6] hover:bg-[#0C4E33] hover:text-white"
+          }`}
+        >
+          <Leaf className="h-4 w-4 shrink-0" />
+          <span>Analyze</span>
+        </button>
 
-        {/* Recent Analyses */}
-        <div className="mt-6 flex flex-col flex-1 overflow-hidden">
-          <h3 className="text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-3">
-            Recent Analyses
-          </h3>
+        {/* History */}
+        <button
+          type="button"
+          onClick={() => onSelectView("history")}
+          className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            activeView === "history"
+              ? "bg-[#176B3A] text-white shadow-sm"
+              : "text-[#A0B2A6] hover:bg-[#0C4E33] hover:text-white"
+          }`}
+        >
+          <Clock className="h-4 w-4 shrink-0" />
+          <span>History</span>
+        </button>
+      </nav>
 
-          <div className="flex-1 overflow-y-auto space-y-1.5">
-            {recentHistory.length > 0
-              ? recentHistory.slice(0, 5).map((item) => {
-                  const thumb = getFullImageUrl(item.image_url || item.gradcam_image) || "/samples/peach.jpg";
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() =>
-                        handleItemClick(
-                          item.plant,
-                          item.disease,
-                          item.confidence,
-                          item.image_url || thumb,
-                          item.timestamp
-                        )
-                      }
-                      className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-[#F9FAFB] transition-colors"
-                    >
-                      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-[#F3F4F6] border border-[#E5E7EB]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={thumb} alt={item.plant} className="h-full w-full object-cover" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-[#111827] truncate">{item.plant}</div>
-                        <div className="text-xs text-[#6B7280] truncate">{item.disease}</div>
-                      </div>
-                    </div>
-                  );
-                })
-              : DEFAULT_RECENT_SAMPLES.slice(0, 4).map((sample) => (
-                  <div
-                    key={sample.id}
-                    onClick={() =>
-                      handleItemClick(
-                        sample.plant,
-                        sample.disease,
-                        sample.confidence,
-                        sample.thumb,
-                        sample.date
-                      )
-                    }
-                    className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-[#F9FAFB] transition-colors"
-                  >
-                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-[#F3F4F6] border border-[#E5E7EB]">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={sample.thumb} alt={sample.plant} className="h-full w-full object-cover" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-[#111827] truncate">{sample.plant}</div>
-                      <div className="text-xs text-[#6B7280] truncate">{sample.disease}</div>
-                    </div>
-                  </div>
-                ))}
+      {/* Watermark Leaf Illustration */}
+      <div className="absolute bottom-16 left-0 right-0 pointer-events-none opacity-20">
+        <svg viewBox="0 0 200 240" fill="none" className="w-full text-[#2F8A4B]">
+          <path d="M0 240 C30 180 60 140 120 100 C150 80 180 50 190 10 C160 30 130 60 90 90 C40 130 10 180 0 240Z" fill="currentColor" />
+          <path d="M0 240 C50 200 90 160 140 130 C170 110 185 85 195 50 C170 75 140 100 100 125 C50 160 20 200 0 240Z" fill="currentColor" opacity="0.6" />
+        </svg>
+      </div>
+
+      {/* Bottom Section */}
+      <div className="mt-auto p-3.5 z-10 space-y-3">
+        {/* Healthy Plants Badge */}
+        <div className="rounded-xl bg-[#0B4A30] border border-[#0F5A3B] p-2.5 flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#176B3A] text-white shrink-0">
+            <Sprout className="h-4 w-4 text-[#2F8A4B]" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-white leading-tight">Healthy Plants</p>
+            <p className="text-[9px] text-[#A0B2A6] leading-tight">Sustainable Future</p>
           </div>
         </div>
 
-        {/* Model Working card */}
-        {onOpenViva && (
-          <div className="mt-4 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-3">
-            <button
-              type="button"
-              onClick={() => {
-                onOpenViva();
-                if (onCloseMobile) onCloseMobile();
-              }}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#065F46] py-2 text-sm font-semibold text-white hover:bg-[#064E3B] transition-colors"
-            >
-              <span>⚙️</span>
-              <span>Model Working</span>
-            </button>
+        {/* Viva / Project Label */}
+        <div className="border-t border-[#0C4E33] pt-2.5 text-[10px] text-[#A0B2A6] space-y-0.5">
+          <div className="flex items-center gap-1.5 font-bold text-white">
+            <GraduationCap className="h-3.5 w-3.5 text-[#2F8A4B]" />
+            <span>BCA AI &amp; Data Science</span>
           </div>
-        )}
-      </aside>
-    </>
+          <p className="text-[9px] text-[#A0B2A6]">Plant Disease Detection</p>
+          <p className="text-[9px] text-[#71887A]">v1.0.0</p>
+        </div>
+      </div>
+    </aside>
   );
 }

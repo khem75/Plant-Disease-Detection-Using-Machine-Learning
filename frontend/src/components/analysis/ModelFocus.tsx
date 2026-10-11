@@ -145,13 +145,13 @@ export function ModelFocus({
                   className="absolute inset-0 h-full w-full object-contain p-2"
                 />
 
-                {/* Overlaid heatmap with interactive opacity */}
+                {/* Overlaid attention heatmap with interactive opacity */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={fullHeatmapUrl}
-                  alt="Attention heatmap overlay"
+                  src={fullGradcamUrl}
+                  alt="Attention focus overlay"
                   style={{ opacity: opacity / 100 }}
-                  className="absolute inset-0 h-full w-full object-contain p-2 mix-blend-multiply transition-opacity duration-75"
+                  className="absolute inset-0 h-full w-full object-contain p-2 transition-opacity duration-75"
                 />
               </div>
             )}

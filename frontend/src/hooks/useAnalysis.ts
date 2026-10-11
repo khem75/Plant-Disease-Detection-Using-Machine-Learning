@@ -67,17 +67,11 @@ export function useAnalysis(onAnalysisSuccess?: () => void) {
     setError(null);
     setStage("preparing");
 
-    let fileToUpload = selectedFile;
+    const fileToUpload = selectedFile;
     if (!fileToUpload) {
-      try {
-        const res = await fetch("/leaf.jpg");
-        const blob = await res.blob();
-        fileToUpload = new File([blob], "leaf.jpg", { type: "image/jpeg" });
-      } catch {
-        setError("Please choose or drag an image to analyze.");
-        setStage("idle");
-        return;
-      }
+      setError("Please choose or drag a leaf image to analyze.");
+      setStage("idle");
+      return;
     }
 
     const formData = new FormData();

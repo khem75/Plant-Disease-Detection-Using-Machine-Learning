@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 from backend.disease_data import DISEASE_KNOWLEDGE_BASE, get_disease_metadata
+from backend.preprocessing import assess_image_quality, load_and_preprocess_image
 from gradcam import generate_gradcam_for_image
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -257,19 +258,14 @@ def validate_uploaded_file(file: UploadFile) -> None:
         )
 
 
-def preprocess_image_from_bytes(file_bytes: bytes) -> np.ndarray:
+def preprocess_image_from_bytes(file_bytes: bytes) -> Tuple[np.ndarray, np.ndarray]:
     try:
-        image = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+        return load_and_preprocess_image(file_bytes)
     except Exception as exc:
         raise HTTPException(
             status_code=400,
             detail="Could not read the uploaded image. Please ensure it is a valid, uncorrupted picture."
         ) from exc
-
-    array = np.array(image, dtype=np.float32)
-    resized = cv2.resize(array, (224, 224))
-    preprocessed = tf.keras.applications.efficientnet.preprocess_input(resized)
-    return np.expand_dims(preprocessed, axis=0)
 
 
 @app.on_event("startup")
@@ -389,11 +385,13 @@ async def predict_image(file: UploadFile = File(...)) -> Dict[str, Any]:
         img_width, img_height = 256, 256
         image_url = ""
 
-    # Model inference: Genuine raw softmax probability output
     t_start = time.perf_counter()
     try:
-        image_array = preprocess_image_from_bytes(file_bytes)
-        raw_predictions = model.predict(image_array, verbose=0)[0]
+        image_batch, original_rgb = preprocess_image_from_bytes(file_bytes)
+        is_quality_ok, quality_message = assess_image_quality(original_rgb)
+        raw_predictions = model.predict(image_batch, verbose=0)[0]
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -530,8 +528,13 @@ async def predict_image(file: UploadFile = File(...)) -> Dict[str, Any]:
             "targetClassIndex": predicted_index,
             "image": gradcam_image,
             "heatmap": heatmap_image,
+            "hotspots": gradcam_result.get("hotspots", []) if "gradcam_result" in locals() and isinstance(gradcam_result, dict) else [],
+            "lesions_detected": gradcam_result.get("lesions_detected", 0) if "gradcam_result" in locals() and isinstance(gradcam_result, dict) else 0,
+            "affected_area_pct": gradcam_result.get("affected_area_pct", 0.0) if "gradcam_result" in locals() and isinstance(gradcam_result, dict) else 0.0,
         },
         "recommendations": recommendations_list,
+        "quality_warning": quality_message if not is_quality_ok else None,
+        "is_out_of_distribution": confidence < 50.0,
         "model": {
             "name": "EfficientNet-B0",
             "inputSize": "224x224",

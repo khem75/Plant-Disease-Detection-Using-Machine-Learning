@@ -30,6 +30,7 @@ model/gradcam_outputs/*
 !model/gradcam_outputs/.gitkeep
 temp_*.png
 test_sample.png
+scratch/
 
 # Node & Next.js
 node_modules/
