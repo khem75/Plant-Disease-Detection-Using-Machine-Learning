@@ -13,7 +13,7 @@ export function useAnalysis(onAnalysisSuccess?: () => void) {
   const [validation, setValidation] = useState<ImageValidationResult | null>(null);
   const [stage, setStage] = useState<AnalysisStage>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<PredictionResult | null>(null);
+  const [result, setResultState] = useState<PredictionResult | null>(null);
 
   // Clean up object URLs
   const cleanupPreview = useCallback(() => {
@@ -100,7 +100,7 @@ export function useAnalysis(onAnalysisSuccess?: () => void) {
 
       setStage("explaining");
       const payload: PredictionResult = await response.json();
-      setResult(payload);
+      setResultState(payload);
       setStage("success");
 
       if (onAnalysisSuccess) {
@@ -116,6 +116,10 @@ export function useAnalysis(onAnalysisSuccess?: () => void) {
   const resetForNewAnalysis = useCallback(() => {
     clearSelection();
   }, [clearSelection]);
+
+  const setResult = useCallback((res: PredictionResult | null) => {
+    setResultState(res);
+  }, []);
 
   return {
     selectedFile,

@@ -501,6 +501,166 @@ export const DISEASE_CATALOG: Record<string, DiseaseInfo> = {
       "Inspect weekly for early signs of hornworms, mites, and foliar spots"
     ],
   },
+  "Blueberry___healthy": {
+    plant: "Blueberry",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "The blueberry foliage displays optimal vegetative vigor with deep green leaves, smooth leaf margins, and no signs of bacterial scorch, rust, or mummy berry blights.",
+    symptoms: [
+      "Clean glossy foliage with uniform green pigmentation",
+      "Normal vascular coloration along main and lateral veins",
+      "No leaf tip necrosis, marginal browning, or interveinal chlorosis"
+    ],
+    prevention: [
+      "Maintain acidic soil pH (ideally 4.5 to 5.2) with organic pine bark mulch",
+      "Provide consistent moisture through drip emitters to prevent drought stress",
+      "Monitor periodically for spotted-wing drosophila and leaf spot symptoms"
+    ],
+  },
+  "Cherry_(including_sour)___healthy": {
+    plant: "Cherry",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "The cherry foliage exhibits healthy cell structure, rich chlorophyll content, and normal serrated leaf margins without fungal spots or powdery colonies.",
+    symptoms: [
+      "Uniform green leaf color with healthy serrated margin",
+      "No shot-hole perforations, leaf curl, or chlorotic patches",
+      "Clean leaf undersides without white mycelial growth or rust spots"
+    ],
+    prevention: [
+      "Ensure good orchard drainage and annual canopy thinning for light penetration",
+      "Apply balanced nitrogen fertilizer avoid excessive vegetative flush",
+      "Scout weekly during warm humid periods"
+    ],
+  },
+  "Corn_(maize)___healthy": {
+    plant: "Corn (Maize)",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "Healthy maize foliage with clean parallel venation, uniform deep green hue, and no fungal pustules, striping, or necrotic blights.",
+    symptoms: [
+      "Uniform green leaf blade with intact margins and healthy ligule attachment",
+      "Absence of chlorotic striping, necrotic spots, or fungal spore eruptions",
+      "Strong turgor pressure and vigorous leaf expansion"
+    ],
+    prevention: [
+      "Maintain soil fertility according to soil test recommendations",
+      "Ensure weed management to eliminate competitive reservoir plants",
+      "Scout at V6, V12, and R1 reproductive stages"
+    ],
+  },
+  "Grape___healthy": {
+    plant: "Grape",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "Healthy grapevine foliage with well-defined leaf lobes, clear venation, intact cuticle, and no signs of mildew, anthracnose, or wood-rot stripe patterns.",
+    symptoms: [
+      "Lush green leaf blade with normal lobed structure and serration",
+      "Absence of interveinal striping, powdery deposits, or necrotic spots",
+      "Clean leaf petioles without dark cankers or fungal lesions"
+    ],
+    prevention: [
+      "Practice regular canopy management, shoot thinning, and leaf pulling",
+      "Monitor vineyard microclimate and leaf wetness duration",
+      "Maintain soil drainage and balanced potassium/nitrogen nutrition"
+    ],
+  },
+  "Peach___healthy": {
+    plant: "Peach",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "The peach leaf displays healthy lanceolate morphology, vibrant green coloring, smooth surface texture, and absence of bacterial pitting or leaf curl deformities.",
+    symptoms: [
+      "Smooth lanceolate leaf blade with bright green pigmentation",
+      "No shot-hole perforations, leaf curling, or water-soaked lesions",
+      "Intact leaf margins and healthy petiole attachment"
+    ],
+    prevention: [
+      "Follow a preventative dormant copper wash for peach leaf curl control",
+      "Maintain balanced pruning to ensure adequate sunlight in the center canopy",
+      "Ensure regular deep irrigation during fruit development stages"
+    ],
+  },
+  "Pepper,_bell___healthy": {
+    plant: "Bell Pepper",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "The bell pepper leaf exhibits rich dark green color, smooth surface, prominent veins, and absence of water-soaked lesions, aphid mottling, or fungal spots.",
+    symptoms: [
+      "Lush uniform green color across entire leaf surface",
+      "Smooth, intact leaf blade free of necrotic margins or spots",
+      "Healthy vascular structure with no virus-induced mosaic patterns"
+    ],
+    prevention: [
+      "Ensure steady drip irrigation and avoid soil splashing onto lower foliage",
+      "Mulch beds with clean straw or plastic to suppress soil-borne pathogens",
+      "Scout underside of leaves weekly for early thrips, aphids, and mites"
+    ],
+  },
+  "Potato___healthy": {
+    plant: "Potato",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "Healthy potato foliage displaying vigorous compound leaves, vibrant emerald green coloration, and no signs of target-shaped spots or water-soaked blights.",
+    symptoms: [
+      "Healthy compound leaves with glossy green leaflets",
+      "No necrotic spots, target rings, or white sporulation",
+      "Turgid erect stems with vigorous canopy growth"
+    ],
+    prevention: [
+      "Hill potatoes properly to protect tubers from light exposure and spore wash",
+      "Rotate potato fields on a minimum 3-year cycle with non-solanaceous crops",
+      "Maintain soil moisture without allowing standing water in furrows"
+    ],
+  },
+  "Raspberry___healthy": {
+    plant: "Raspberry",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "Healthy raspberry leaf with typical compound structure, fine serrated margins, clean silvery undersides, and absence of cane blight or rust pustules.",
+    symptoms: [
+      "Uniform green upper surface and clean whitish-green underside",
+      "Serrated edges intact with no leaf scorch, mottling, or necrosis",
+      "Vigorous cane petioles without spur blight or anthracnose cankers"
+    ],
+    prevention: [
+      "Trellis canes to improve air movement and sun exposure",
+      "Prune out spent floricanes immediately after harvest at ground level",
+      "Mulch rows to prevent weed competition and reduce soil splashing"
+    ],
+  },
+  "Soybean___healthy": {
+    plant: "Soybean",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "Healthy trifoliate soybean leaf with optimal chlorophyll balance, uniform leaflet development, and absence of frogeye leaf spots, downy mildew, or rust pustules.",
+    symptoms: [
+      "Clean trifoliate leaves with vibrant green coloration",
+      "No vein necrosis, rust pustules, or chlorotic mosaic mottling",
+      "Strong leaflet structure and smooth lamina"
+    ],
+    prevention: [
+      "Select high-yielding seed varieties with resistance to soybean cyst nematode and Phytophthora",
+      "Practice crop rotation with corn or small grains",
+      "Scout canopy at R1 (flowering) and R3 (pod development) stages"
+    ],
+  },
+  "Strawberry___healthy": {
+    plant: "Strawberry",
+    disease: "Healthy Leaf",
+    pathogen: "None (Healthy)",
+    description: "The strawberry foliage displays healthy trifoliate leaves, rich emerald green color, crisp serrated edges, and no signs of leaf spot, scorch, or botrytis mold.",
+    symptoms: [
+      "Lush trifoliate green leaves with clean serrations",
+      "No purple blotches, powdery coating, or necrotic margins",
+      "Healthy petiole connection and vigorous crown emergence"
+    ],
+    prevention: [
+      "Mulch with clean dry straw to keep leaves and fruit elevated off soil",
+      "Ensure good bed drainage and avoid soil saturation",
+      "Rotate strawberry plantings every 3 to 4 years to break disease cycles"
+    ],
+  },
 };
 
 export function getLocalDiseaseMetadata(className: string): DiseaseInfo {

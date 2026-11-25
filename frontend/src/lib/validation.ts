@@ -64,17 +64,73 @@ export async function validateImageFile(file: File): Promise<ImageValidationResu
           const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
           const data = imageData.data;
           let totalBrightness = 0;
+          let foliarPixelCount = 0;
+          let neutralPixelCount = 0;
+          const totalPixels = data.length / 4;
 
           for (let i = 0; i < data.length; i += 4) {
-            // Perceived luminance formula (ITU-R BT.709)
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
+            // Perceived luminance formula (ITU-R BT.709)
             totalBrightness += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+            // RGB to HSV conversion for botanical validation
+            const rNorm = r / 255;
+            const gNorm = g / 255;
+            const bNorm = b / 255;
+            const max = Math.max(rNorm, gNorm, bNorm);
+            const min = Math.min(rNorm, gNorm, bNorm);
+            const delta = max - min;
+            let hue = 0;
+            if (delta > 0) {
+              if (max === rNorm) {
+                hue = ((gNorm - bNorm) / delta) % 6;
+              } else if (max === gNorm) {
+                hue = (bNorm - rNorm) / delta + 2;
+              } else {
+                hue = (rNorm - gNorm) / delta + 4;
+              }
+              hue = Math.round(hue * 60);
+              if (hue < 0) hue += 360;
+            }
+            const sat = max > 0 ? (delta / max) * 100 : 0;
+            const val = max * 100;
+
+            // Check neutral / monochrome / document pixels
+            if (sat < 12 || (val > 94 && sat < 18) || val < 8) {
+              neutralPixelCount++;
+            }
+
+            // Botanical foliar hue: green (chlorophyll) through yellow/amber/rust/brown (carotenoid/necrosis)
+            // Hue in degrees: 18° to 180° with sufficient saturation
+            if (hue >= 18 && hue <= 180 && sat >= 15 && val >= 15) {
+              foliarPixelCount++;
+            }
           }
 
-          const avgBrightness = totalBrightness / (sampleSize * sampleSize);
+          const avgBrightness = totalBrightness / totalPixels;
           brightnessScore = Math.round(avgBrightness);
+          const neutralRatio = neutralPixelCount / totalPixels;
+          const foliarRatio = foliarPixelCount / totalPixels;
+
+          // Reject document / paper table / text screenshots
+          if (neutralRatio > 0.82 && foliarRatio < 0.14) {
+            resolve({
+              valid: false,
+              error: "Document or text image detected: The selected file appears to be a document or graphic. Please upload a clear photo of a real plant leaf.",
+            });
+            return;
+          }
+
+          // Reject non-plant images (no botanical leaf foliage detected)
+          if (foliarRatio < 0.10) {
+            resolve({
+              valid: false,
+              error: "Non-plant image detected: No botanical leaf foliage could be identified. Please upload a clear photograph of a plant leaf.",
+            });
+            return;
+          }
 
           if (avgBrightness < 45) {
             warning = "Image lighting appears dark. Consider retaking in brighter, indirect daylight.";

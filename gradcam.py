@@ -141,8 +141,11 @@ def extract_leaf_foreground_mask(bgr_img: np.ndarray) -> np.ndarray:
 
     coverage = np.mean(leaf_mask > 0)
     # If image is a tight macro zoom of leaf tissue (>95% coverage), preserve full mask
-    if coverage < 0.04 or coverage > 0.95:
+    if coverage > 0.95:
         return np.ones(gray.shape, dtype=np.float32)
+    # If virtually no leaf tissue detected (<4%), return zero mask
+    if coverage < 0.04:
+        return np.zeros(gray.shape, dtype=np.float32)
 
     # Smooth boundary transition
     mask_soft = cv2.GaussianBlur(leaf_mask.astype(np.float32) / 255.0, (11, 11), 0)
@@ -220,7 +223,7 @@ def generate_gradcam(
     dense_w, dense_b = get_dense_weights(model)
     backbone = model.layers[1] if len(model.layers) > 1 and isinstance(model.layers[1], tf.keras.Model) else model
 
-    # Multi-scale extraction targets
+    # Multi-scale extraction targets: deep semantic + mid lesion + fine spot layers
     try:
         layer_high = backbone.get_layer("top_activation")
     except ValueError:
@@ -231,78 +234,95 @@ def generate_gradcam(
     except ValueError:
         layer_mid = layer_high
 
+    try:
+        layer_low = backbone.get_layer("block3b_add")
+    except ValueError:
+        layer_low = layer_mid
+
     multi_extractor = tf.keras.Model(
         inputs=backbone.inputs,
-        outputs=[layer_mid.output, layer_high.output, backbone.output],
+        outputs=[layer_low.output, layer_mid.output, layer_high.output, backbone.output],
     )
 
     with tf.GradientTape(persistent=True) as tape:
-        feat_mid, feat_high, base_outputs = multi_extractor(image_batch)
-        tape.watch([feat_mid, feat_high])
+        feat_low, feat_mid, feat_high, base_outputs = multi_extractor(image_batch)
+        tape.watch([feat_low, feat_mid, feat_high])
         gap = tf.keras.layers.GlobalAveragePooling2D()(base_outputs)
         logits = tf.matmul(gap, dense_w) + dense_b
         target_score = logits[:, class_index]
 
     grads_high = tape.gradient(target_score, feat_high)
     grads_mid = tape.gradient(target_score, feat_mid)
+    grads_low = tape.gradient(target_score, feat_low)
 
     if grads_high is None:
         raise ValueError("Gradients could not be computed for target layer.")
 
-    # 1. Authentic Grad-CAM formulation on final convolutional layer
-    weights = tf.reduce_mean(grads_high, axis=(1, 2), keepdims=True)
-    cam_raw = tf.reduce_sum(feat_high * weights, axis=-1)[0].numpy()
-    cam_relu = np.maximum(cam_raw, 0.0)
+    # 1. High layer Grad-CAM++ (7x7) for deep semantic pathology context
+    grads_pos = tf.maximum(grads_high, 0.0)
+    grads_pow2 = tf.square(grads_high)
+    grads_pow3 = grads_pow2 * grads_high
+    sum_feat = tf.reduce_sum(feat_high, axis=(1, 2), keepdims=True)
+    alpha_denom = 2.0 * grads_pow2 + sum_feat * grads_pow3 + 1e-10
+    alpha = grads_pow2 / alpha_denom
+    weights_pp = tf.reduce_sum(alpha * grads_pos, axis=(1, 2), keepdims=True)
+    cam_raw_high = tf.reduce_sum(feat_high * weights_pp, axis=-1)[0].numpy()
+    cam_relu_high = np.maximum(cam_raw_high, 0.0)
 
-    # 2. LayerCAM on intermediate layer (block5c_add) to capture fine-grained spot texture
+    # 2. Intermediate LayerCAM (14x14) for multi-lesion cluster localization
     if grads_mid is not None and layer_mid != layer_high:
-        weights_mid = tf.maximum(grads_mid, 0.0)
-        cam_mid_raw = tf.reduce_sum(feat_mid * weights_mid, axis=-1)[0].numpy()
-        cam_mid_relu = np.maximum(cam_mid_raw, 0.0)
-        if np.max(cam_mid_relu) > 1e-8:
-            cam_mid_norm = cam_mid_relu / np.max(cam_mid_relu)
-        else:
-            cam_mid_norm = cam_mid_relu
+        weights_mid = tf.reduce_mean(tf.maximum(grads_mid, 0.0), axis=(1, 2), keepdims=True)
+        cam_raw_mid = tf.reduce_sum(feat_mid * weights_mid, axis=-1)[0].numpy()
+        cam_relu_mid = np.maximum(cam_raw_mid, 0.0)
     else:
-        cam_mid_norm = cam_relu
+        cam_relu_mid = cam_relu_high
 
-    # Normalize deep CAM
-    if np.max(cam_relu) > 1e-8:
-        cam_high_norm = cam_relu / np.max(cam_relu)
+    # 3. Fine-grain Layer (28x28) for pinpoint necrotic spot edges
+    if grads_low is not None and layer_low != layer_mid:
+        weights_low = tf.reduce_mean(tf.maximum(grads_low, 0.0), axis=(1, 2), keepdims=True)
+        cam_raw_low = tf.reduce_sum(feat_low * weights_low, axis=-1)[0].numpy()
+        cam_relu_low = np.maximum(cam_raw_low, 0.0)
     else:
-        cam_high_norm = cam_relu
+        cam_relu_low = cam_relu_mid
 
-    # Upsample both smoothly to native input dimensions
-    cam_up_high = cv2.resize(cam_high_norm, (w_orig, h_orig), interpolation=cv2.INTER_CUBIC)
-    cam_up_mid = cv2.resize(cam_mid_norm, (w_orig, h_orig), interpolation=cv2.INTER_CUBIC)
+    # Upsample each layer smoothly to native input dimensions
+    cam_up_high = cv2.resize(cam_relu_high / (np.max(cam_relu_high) + 1e-8), (w_orig, h_orig), interpolation=cv2.INTER_CUBIC)
+    cam_up_mid = cv2.resize(cam_relu_mid / (np.max(cam_relu_mid) + 1e-8), (w_orig, h_orig), interpolation=cv2.INTER_CUBIC)
+    cam_up_low = cv2.resize(cam_relu_low / (np.max(cam_relu_low) + 1e-8), (w_orig, h_orig), interpolation=cv2.INTER_CUBIC)
 
-    # 3. Multi-scale combination: 65% deep semantic context + 35% fine lesion localization
-    cam_fused = 0.65 * cam_up_high + 0.35 * cam_up_mid
+    # Multi-resolution weighted fusion
+    cam_fused = 0.50 * cam_up_high + 0.35 * cam_up_mid + 0.15 * cam_up_low
 
-    # 4. Smooth bicubic Gaussian filtration to eliminate blocky grid artifacts
-    kernel_size = max(5, int(min(h_orig, w_orig) * 0.035) | 1)
-    cam_smooth = cv2.GaussianBlur(cam_fused, (kernel_size, kernel_size), 0)
-
-    # 5. Extract accurate leaf foreground mask (prevents spurious background activations)
+    # 4. Extract leaf foreground mask
     bgr_img = cv2.cvtColor(original_array, cv2.COLOR_RGB2BGR)
     leaf_mask = extract_leaf_foreground_mask(bgr_img)
+    cam_on_leaf = cam_fused * leaf_mask
 
-    # Focus heatmap strictly on leaf tissue
-    cam_on_leaf = cam_smooth * leaf_mask
+    # 5. Edge-aware guided filtering snapped to foliar lesion margins & leaf veins
+    gray = cv2.cvtColor(original_array, cv2.COLOR_RGB2GRAY)
+    cam_guided = guided_filter_refinement(gray, cam_on_leaf, radius=5, eps=1e-3)
+    cam_enhanced = 0.65 * cam_on_leaf + 0.35 * cam_guided
 
     if is_healthy:
-        # For healthy foliage, model prediction is based on healthy green lamina across the leaf.
-        # Provide soft, gentle foliar confirmation without synthetic focal lesion hotspots.
-        cam_final = np.clip(leaf_mask * 0.35, 0.0, 1.0)
+        # Soft foliar confirmation for healthy leaves (no false lesion hotspots)
+        cam_final = np.clip(leaf_mask * 0.25, 0.0, 1.0)
         pathology_metrics = {
             "hotspots": [],
             "lesions_detected": 0,
             "affected_area_pct": 0.0,
         }
     else:
-        peak = float(np.max(cam_on_leaf))
-        if peak > 1e-6:
-            cam_final = np.clip(cam_on_leaf / peak, 0.0, 1.0)
+        # Robust percentile contrast stretching on leaf tissue:
+        # Prevents an isolated border spike from compressing the rest of the leaf lesions
+        leaf_act_values = cam_enhanced[leaf_mask > 0.20]
+        if len(leaf_act_values) > 0 and np.max(leaf_act_values) > 1e-6:
+            p95 = float(np.percentile(leaf_act_values, 95))
+            p5 = float(np.percentile(leaf_act_values, 5))
+            if p95 > p5 + 1e-6:
+                cam_norm = np.clip((cam_enhanced - p5) / (p95 - p5), 0.0, 1.0)
+            else:
+                cam_norm = np.clip(cam_enhanced / (np.max(cam_enhanced) + 1e-8), 0.0, 1.0)
+            cam_final = np.clip(cam_norm * leaf_mask, 0.0, 1.0)
         else:
             cam_final = np.zeros((h_orig, w_orig), dtype=np.float32)
 
@@ -316,15 +336,21 @@ def overlay_gradcam(
     image_path: Path,
     heatmap: np.ndarray,
     output_path: Path,
-    alpha: float = 0.55,
-    colormap: int = cv2.COLORMAP_JET,
+    alpha: float = 0.62,
+    colormap: int = cv2.COLORMAP_TURBO,
 ) -> None:
     """
-    Overlay Grad-CAM heatmap onto leaf image with adaptive intensity-weighted blending.
-    Unactivated foliage and background remain clear and unclouded;
-    salient lesion regions glow with high-temperature diagnostic colors.
+    Overlay Grad-CAM heatmap onto leaf image with vibrant, balanced diagnostic illumination.
+    Unactivated foliage and background remain clear, natural and unclouded;
+    salient lesion regions glow with high-contrast, perceptually uniform diagnostic colors (Turbo).
     """
-    original_bgr = cv2.imread(str(image_path))
+    original_bgr = None
+    try:
+        pil_img = Image.open(str(image_path)).convert("RGB")
+        original_bgr = cv2.cvtColor(np.array(pil_img, dtype=np.uint8), cv2.COLOR_RGB2BGR)
+    except Exception:
+        original_bgr = cv2.imread(str(image_path))
+
     if original_bgr is None:
         raise ValueError(f"Could not read image from {image_path}")
 
@@ -336,10 +362,11 @@ def overlay_gradcam(
     heatmap_uint8 = np.uint8(255.0 * heatmap)
     heatmap_colored = cv2.applyColorMap(heatmap_uint8, colormap)
 
-    # Adaptive alpha blend:
-    # Low activation (< 0.08) leaves original photo crystal clear
-    # High activation transitions smoothly to the colormap overlay
-    alpha_map = np.clip((heatmap - 0.08) / 0.92, 0.0, 1.0) * alpha
+    # Vibrant adaptive linear-smooth blend:
+    # Pure unactivated foliage (< 0.05) remains completely clean and natural.
+    # Diseased tissue smoothly ramps up into vivid thermal diagnostic color.
+    act = np.clip((heatmap - 0.05) / 0.95, 0.0, 1.0)
+    alpha_map = np.where(heatmap >= 0.05, (0.22 + 0.78 * act) * alpha, 0.0)
     alpha_3d = np.repeat(alpha_map[:, :, np.newaxis], 3, axis=2)
 
     blended = (
@@ -347,17 +374,29 @@ def overlay_gradcam(
         + heatmap_colored.astype(np.float32) * alpha_3d
     ).astype(np.uint8)
 
+    # Boundary highlight on salient lesion cores (heatmap >= 0.50)
+    lesion_core = (heatmap >= 0.50).astype(np.uint8)
+    contours, _ = cv2.findContours(lesion_core, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if contours:
+        contour_layer = blended.copy()
+        cv2.drawContours(contour_layer, contours, -1, (30, 210, 255), 1, lineType=cv2.LINE_AA)
+        blended = cv2.addWeighted(contour_layer, 0.45, blended, 0.55, 0)
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(output_path), blended)
+    is_success, buffer = cv2.imencode(".png", blended)
+    if is_success:
+        output_path.write_bytes(buffer.tobytes())
+    else:
+        cv2.imwrite(str(output_path), blended)
 
 
 def save_heatmap_only(
     heatmap: np.ndarray,
     target_shape: Tuple[int, int],
     output_path: Path,
-    colormap: int = cv2.COLORMAP_JET,
+    colormap: int = cv2.COLORMAP_TURBO,
 ) -> None:
-    """Save standalone colormapped attention heatmap in BGR for display."""
+    """Save standalone colormapped attention heatmap in BGR for display with dark background."""
     w, h = target_shape
     if heatmap.shape[:2] != (h, w):
         heatmap = cv2.resize(heatmap, (w, h), interpolation=cv2.INTER_CUBIC)
@@ -366,8 +405,21 @@ def save_heatmap_only(
     heatmap_uint8 = np.uint8(255.0 * heatmap)
     heatmap_colored = cv2.applyColorMap(heatmap_uint8, colormap)
 
+    # Darken zero/near-zero baseline background to rich scientific dark-slate
+    dark_bg = np.full_like(heatmap_colored, fill_value=12, dtype=np.uint8)
+    # Smooth mask for foreground presence
+    blend_factor = np.clip(heatmap * 2.5, 0.0, 1.0)[:, :, np.newaxis]
+    heatmap_styled = (
+        heatmap_colored.astype(np.float32) * blend_factor
+        + dark_bg.astype(np.float32) * (1.0 - blend_factor)
+    ).astype(np.uint8)
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(output_path), heatmap_colored)
+    is_success, buffer = cv2.imencode(".png", heatmap_styled)
+    if is_success:
+        output_path.write_bytes(buffer.tobytes())
+    else:
+        cv2.imwrite(str(output_path), heatmap_styled)
 
 
 def generate_gradcam_for_image(
@@ -497,7 +549,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Generate and validate Grad-CAM for a leaf image.")
-    parser.add_argument("image", help="Path to the input leaf image")
+    parser.add_argument("image", nargs="?", default=None, help="Path to input leaf image (optional; uses a dataset sample by default)")
     parser.add_argument("--model", default=str(MODEL_PATH), help="Path to the Keras model")
     parser.add_argument("--class-map", default=str(CLASS_MAP_PATH), help="Path to class_names.json")
     parser.add_argument("--output-dir", default=str(OUTPUT_DIR), help="Directory to store Grad-CAM output")
@@ -505,12 +557,22 @@ if __name__ == "__main__":
     parser.add_argument("--validate", action="store_true", help="Run full Grad-CAM validation test suite")
     args = parser.parse_args()
 
+    image_path = args.image
+    if not image_path:
+        # Automatically discover a representative sample leaf image from dataset
+        dataset_folder = BASE_DIR / "dataset"
+        sample_file = next(dataset_folder.glob("**/*.JPG"), None) or next(dataset_folder.glob("**/*.jpg"), None)
+        if sample_file is None:
+            parser.error("No image path provided and no leaf images found under dataset/.")
+        image_path = str(sample_file)
+        print(f"No image argument provided. Operating on discovered sample: {image_path}\n")
+
     if args.validate:
-        validation_report = validate_gradcam_integrity(args.image)
+        validation_report = validate_gradcam_integrity(image_path)
         print(json.dumps(validation_report, indent=2))
     else:
         result = generate_gradcam_for_image(
-            image_path=args.image,
+            image_path=image_path,
             model_path=args.model,
             class_map_path=args.class_map,
             output_dir=args.output_dir,

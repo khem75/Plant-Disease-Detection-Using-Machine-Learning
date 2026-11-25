@@ -1,7 +1,7 @@
 export const APP_CONFIG = {
   appName: "Plant Health",
   appSubtitle: "AI-powered leaf disease analysis",
-  apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+  apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000",
   maxFileSizeBytes: 10 * 1024 * 1024, // 10 MB
   maxFileSizeMB: 10,
   supportedMimeTypes: ["image/jpeg", "image/png", "image/webp"],

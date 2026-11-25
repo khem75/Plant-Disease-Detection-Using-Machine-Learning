@@ -6,7 +6,7 @@
   --primary-green: #176B3A;
   --leaf-green: #2F8A4B;
   --pale-green: #E8F3E8;
-  --background: #F2F6F2;
+  --background: #F4F7F4;
   --surface: #FFFFFF;
   --border: #DFE7DF;
   --border-light: #EBF0EB;
@@ -31,6 +31,11 @@ body {
   margin: 0;
   min-height: 100vh;
   background-color: var(--background);
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(37, 131, 74, 0.05) 0%, transparent 45%),
+    radial-gradient(circle at 85% 10%, rgba(74, 222, 128, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 50% 85%, rgba(23, 107, 58, 0.04) 0%, transparent 50%);
+  background-attachment: fixed;
   color: var(--primary-text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -53,10 +58,18 @@ body {
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.2s ease-out forwards;
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Custom scrollbars */
+/* Subtle Glassmorphic Panels */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(223, 231, 223, 0.85);
+}
+
+/* Custom Botanical Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -67,10 +80,78 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D2DDD4;
-  border-radius: 3px;
+  background: #CBDAD0;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #A0B2A4;
+  background: #9FB2A5;
+}
+
+/* ========================================================
+   PROFESSIONAL PRINT & EXPORT STYLESHEET
+   Formats the diagnostic results into an executive botanical
+   pathology laboratory report on A4/Letter paper.
+   ======================================================== */
+@media print {
+  body {
+    background: white !important;
+    color: #111827 !important;
+    font-size: 11pt !important;
+  }
+
+  /* Hide navigation, sidebar, upload area, history table, and interactive controls */
+  aside,
+  header,
+  nav,
+  button,
+  input,
+  .no-print,
+  #leaf-upload-field,
+  .border-dashed {
+    display: none !important;
+  }
+
+  /* Make main workspace full width and remove shadows */
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .shadow-xs,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-2xs,
+  .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  .rounded-2xl,
+  .rounded-xl {
+    border-radius: 6px !important;
+  }
+
+  /* Print header visible only in print mode */
+  .print-only-header {
+    display: block !important;
+    border-bottom: 2px solid #176B3A;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+
+  /* Ensure images print with high fidelity */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  /* Prevent awkward page breaks */
+  .page-break-avoid {
+    page-break-inside: avoid;
+  }
+}
+
+.print-only-header {
+  display: none;
 }

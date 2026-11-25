@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 from backend.disease_data import DISEASE_KNOWLEDGE_BASE, get_disease_metadata
-from backend.preprocessing import assess_image_quality, load_and_preprocess_image
+from backend.preprocessing import assess_image_quality, load_and_preprocess_image, verify_plant_leaf
 from gradcam import generate_gradcam_for_image
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -123,6 +123,14 @@ def load_model_and_classes() -> None:
 
     if MODEL_PATH.exists():
         model_modified_at = MODEL_PATH.stat().st_mtime
+
+    # Warmup model for instant first inference
+    if model is not None:
+        try:
+            dummy_input = np.zeros((1, 224, 224, 3), dtype=np.float32)
+            model.predict(dummy_input, verbose=0)
+        except Exception:
+            pass
 
 
 def ensure_model_loaded() -> None:
@@ -389,10 +397,23 @@ async def predict_image(file: UploadFile = File(...)) -> Dict[str, Any]:
     try:
         image_batch, original_rgb = preprocess_image_from_bytes(file_bytes)
         is_quality_ok, quality_message = assess_image_quality(original_rgb)
+        if not is_quality_ok:
+            if original_save_path.exists():
+                original_save_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=400, detail=quality_message)
+
+        is_leaf, leaf_message, leaf_metrics = verify_plant_leaf(original_rgb)
+        if not is_leaf:
+            if original_save_path.exists():
+                original_save_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=400, detail=leaf_message)
+
         raw_predictions = model.predict(image_batch, verbose=0)[0]
     except HTTPException:
         raise
     except Exception as exc:
+        if original_save_path.exists():
+            original_save_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=500,
             detail="Classification failed during tensor inference."
@@ -408,6 +429,15 @@ async def predict_image(file: UploadFile = File(...)) -> Dict[str, Any]:
     raw_confidence = float(raw_predictions[predicted_index] * 100)
     confidence = round(raw_confidence, 2)
     confidence_level = get_confidence_level(confidence)
+
+    # Out-of-distribution guard: If model confidence is severely diffuse (< 30%) and foliar coverage is low (< 22%)
+    if raw_confidence < 30.0 and leaf_metrics.get("foliar_ratio", 0) < 0.22:
+        if original_save_path.exists():
+            original_save_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=400,
+            detail="Non-plant image detected: The model could not recognize this image as a valid plant leaf. Please upload a clear photo of a plant leaf."
+        )
 
     # 3. Host plant & disease from model class mapping
     parsed = parse_class_name(predicted_class)
